@@ -589,7 +589,7 @@ const Box = types.model({
         x: 10,
         y: 10
     }
-}
+})
 ```
 
 Where the type of `point` property is inferred to `point: types.withDefault(types.model({ x: 10, y: 10}), () => ({ x: 10, y: 10 }))`
