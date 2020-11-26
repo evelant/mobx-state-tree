@@ -105,5 +105,5 @@ export function createProcessSpawner(name: string, generator: Function) {
         "process",
         "`createProcessSpawner()` has been renamed to `createFlowSpawner()`. " + DEPRECATION_MESSAGE
     )
-    return createFlowSpawner(name, generator)
+    return createFlowSpawner(name, generator as any)
 }
