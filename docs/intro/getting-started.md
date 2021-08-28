@@ -34,7 +34,7 @@ npx create-react-app mst-todo
 Next install `mobx`, `mobx-react-lite` and `mobx-state-tree` dependencies.
 
 ```
-yarn add mobx@5.15.7 mobx-react-lite@2.2.2 mobx-state-tree
+yarn add mobx mobx-react-lite mobx-state-tree
 ```
 
 Now you can run `npm run start` and a basic React page will show up. You're all set up and can begin editing the project files!
@@ -464,7 +464,7 @@ const RootStore = types
 
 [View sample in the playground](https://codesandbox.io/s/x293k4q95o)
 
-Notice that the `getTodosWhereDoneIs` view can also be used outside of its model, for example it can be used inside views.
+Notice that other views and View components may call `getTodosWhereDoneIs` outside of the store definition.
 
 ## Going further: References
 
