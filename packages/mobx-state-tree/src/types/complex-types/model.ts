@@ -194,23 +194,28 @@ export interface IModelType<
     // so it is recommended to use pre/post process snapshot after all props have been defined
     props<PROPS2 extends ModelPropertiesDeclaration>(
         props: PROPS2
-    ): IModelType<PROPS & ModelPropertiesDeclarationToProperties<PROPS2>, OTHERS, CustomC, CustomS>
+    ): IModelType<
+        Omit<PROPS, keyof PROPS2> & ModelPropertiesDeclarationToProperties<PROPS2>,
+        OTHERS,
+        CustomC,
+        CustomS
+    >
 
     views<V extends Object>(
         fn: (self: Instance<this>) => V
-    ): IModelType<PROPS, OTHERS & V, CustomC, CustomS>
+    ): IModelType<PROPS, Omit<OTHERS, keyof V> & V, CustomC, CustomS>
 
     actions<A extends ModelActions>(
         fn: (self: Instance<this>) => A
-    ): IModelType<PROPS, OTHERS & A, CustomC, CustomS>
+    ): IModelType<PROPS, Omit<OTHERS, keyof A> & A, CustomC, CustomS>
 
     volatile<TP extends object>(
         fn: (self: Instance<this>) => TP
-    ): IModelType<PROPS, OTHERS & TP, CustomC, CustomS>
+    ): IModelType<PROPS, Omit<OTHERS, keyof TP> & TP, CustomC, CustomS>
 
     extend<A extends ModelActions = {}, V extends Object = {}, VS extends Object = {}>(
         fn: (self: Instance<this>) => { actions?: A; views?: V; state?: VS }
-    ): IModelType<PROPS, OTHERS & A & V & VS, CustomC, CustomS>
+    ): IModelType<PROPS, Omit<OTHERS, keyof V & keyof A & keyof VS> & A & V & VS, CustomC, CustomS>
 
     /** @deprecated See `types.snapshotProcessor` */
     preProcessSnapshot<NewC = ModelCreationType2<PROPS, CustomC>>(
