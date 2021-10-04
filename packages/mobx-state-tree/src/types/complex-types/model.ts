@@ -215,7 +215,7 @@ export interface IModelType<
 
     extend<A extends ModelActions = {}, V extends Object = {}, VS extends Object = {}>(
         fn: (self: Instance<this>) => { actions?: A; views?: V; state?: VS }
-    ): IModelType<PROPS, Omit<OTHERS, keyof V & keyof A & keyof VS> & A & V & VS, CustomC, CustomS>
+    ): IModelType<PROPS, OTHERS & A & V & VS, CustomC, CustomS>
 
     /** @deprecated See `types.snapshotProcessor` */
     preProcessSnapshot<NewC = ModelCreationType2<PROPS, CustomC>>(
