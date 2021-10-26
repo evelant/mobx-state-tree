@@ -151,6 +151,15 @@ export type ModelSnapshotType<P extends ModelProperties> = {
 } &
     NonEmptyObject
 
+/**
+ * Take advantage of tail retcursion optimization to optimize away Omit on .views/.actions where properties don't intersect.
+ * Using Omit makes types _very_ slow
+ * https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-5.html#tail-recursion-elimination-on-conditional-types
+ */
+type OmitIfMatchingKeys<T extends Object, U extends Object> = keyof U & keyof T extends keyof T
+    ? Omit<T, keyof U> & U
+    : U
+
 /** @hidden */
 export type ModelSnapshotType2<P extends ModelProperties, CustomS> = _CustomOrOther<
     CustomS,
@@ -195,7 +204,8 @@ export interface IModelType<
     props<PROPS2 extends ModelPropertiesDeclaration>(
         props: PROPS2
     ): IModelType<
-        Omit<PROPS, keyof PROPS2> & ModelPropertiesDeclarationToProperties<PROPS2>,
+        OmitIfMatchingKeys<PROPS, ModelPropertiesDeclarationToProperties<PROPS2>>,
+        // Omit<PROPS, keyof PROPS2> & ModelPropertiesDeclarationToProperties<PROPS2>,
         OTHERS,
         CustomC,
         CustomS
@@ -203,15 +213,15 @@ export interface IModelType<
 
     views<V extends Object>(
         fn: (self: Instance<this>) => V
-    ): IModelType<PROPS, Omit<OTHERS, keyof V> & V, CustomC, CustomS>
+    ): IModelType<PROPS, OmitIfMatchingKeys<OTHERS, V>, CustomC, CustomS>
 
     actions<A extends ModelActions>(
         fn: (self: Instance<this>) => A
-    ): IModelType<PROPS, Omit<OTHERS, keyof A> & A, CustomC, CustomS>
+    ): IModelType<PROPS, OmitIfMatchingKeys<OTHERS, A>, CustomC, CustomS>
 
     volatile<TP extends object>(
         fn: (self: Instance<this>) => TP
-    ): IModelType<PROPS, Omit<OTHERS, keyof TP> & TP, CustomC, CustomS>
+    ): IModelType<PROPS, OmitIfMatchingKeys<OTHERS, TP>, CustomC, CustomS>
 
     extend<A extends ModelActions = {}, V extends Object = {}, VS extends Object = {}>(
         fn: (self: Instance<this>) => { actions?: A; views?: V; state?: VS }
