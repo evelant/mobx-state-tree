@@ -151,15 +151,25 @@ export type ModelSnapshotType<P extends ModelProperties> = {
 } &
     NonEmptyObject
 
+type IsNotNever<T> = [T] extends [never] ? false : true
+
 /**
- * Take advantage of tail retcursion optimization to optimize away Omit on .views/.actions where properties don't intersect.
- * Using Omit makes types _very_ slow
+ *
+ * Using Omit makes types _very_ slow so only do it if necessary
  * https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-5.html#tail-recursion-elimination-on-conditional-types
  */
-type OmitIfMatchingKeys<T extends Object, U extends Object> = keyof U & keyof T extends keyof T
+type OmitIfMatchingKeys<T extends Object, U extends Object> = IsNotNever<
+    keyof U & keyof T
+> extends true
     ? Omit<T, keyof U> & U
-    : U
+    : T & U
 
+// type Foo = { a: string; b: number }
+// type Bar = { b: number; c: string; d: number }
+// type Foobar = keyof Foo & keyof Bar
+// type FooKey = keyof Foo
+// type Foobanz = Foobar extends FooKey ? Omit<Foo, keyof Bar> & Bar : Bar
+// type Huh = OmitIfMatchingKeys<Foo, Bar>
 /** @hidden */
 export type ModelSnapshotType2<P extends ModelProperties, CustomS> = _CustomOrOther<
     CustomS,
