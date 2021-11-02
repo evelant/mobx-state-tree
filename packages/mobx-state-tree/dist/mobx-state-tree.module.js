@@ -93,12 +93,14 @@ var extendStatics = function (d, b) {
                 d.__proto__ = b
             }) ||
         function (d, b) {
-            for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]
+            for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]
         }
     return extendStatics(d, b)
 }
 
 function __extends(d, b) {
+    if (typeof b !== "function" && b !== null)
+        throw new TypeError("Class extends value " + String(b) + " is not a constructor or null")
     extendStatics(d, b)
     function __() {
         this.constructor = d
@@ -265,6 +267,7 @@ function __read(o, n) {
     return ar
 }
 
+/** @deprecated */
 function __spread() {
     for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]))
     return ar
@@ -1241,6 +1244,14 @@ var BaseNode = /** @class */ (function () {
         enumerable: false,
         configurable: true
     })
+    Object.defineProperty(BaseNode.prototype, "getReconciliationType", {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: function () {
+            return this.type
+        }
+    })
     Object.defineProperty(BaseNode.prototype, "baseSetParent", {
         enumerable: false,
         configurable: true,
@@ -2136,19 +2147,21 @@ var ObjectNode = /** @class */ (function (_super) {
         writable: true,
         value: function () {
             var self = this
-            this._applyPatches = createActionInvoker(this.storedValue, "@APPLY_PATCHES", function (
-                patches
-            ) {
-                patches.forEach(function (patch) {
-                    if (!patch.path) {
-                        self.type.applySnapshot(self, patch.value)
-                        return
-                    }
-                    var parts = splitJsonPath(patch.path)
-                    var node = resolveNodeByPathParts(self, parts.slice(0, -1))
-                    node.applyPatchLocally(parts[parts.length - 1], patch)
-                })
-            })
+            this._applyPatches = createActionInvoker(
+                this.storedValue,
+                "@APPLY_PATCHES",
+                function (patches) {
+                    patches.forEach(function (patch) {
+                        if (!patch.path) {
+                            self.type.applySnapshot(self, patch.value)
+                            return
+                        }
+                        var parts = splitJsonPath(patch.path)
+                        var node = resolveNodeByPathParts(self, parts.slice(0, -1))
+                        node.applyPatchLocally(parts[parts.length - 1], patch)
+                    })
+                }
+            )
             this._applySnapshot = createActionInvoker(
                 this.storedValue,
                 "@APPLY_SNAPSHOT",
@@ -2648,6 +2661,17 @@ var ComplexType = /** @class */ (function (_super) {
             return node.storedValue
         }
     })
+    Object.defineProperty(ComplexType.prototype, "isMatchingSnapshotId", {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: function (current, snapshot) {
+            return (
+                !current.identifierAttribute ||
+                current.identifier === normalizeIdentifier(snapshot[current.identifierAttribute])
+            )
+        }
+    })
     Object.defineProperty(ComplexType.prototype, "tryToReconcileNode", {
         enumerable: false,
         configurable: true,
@@ -2666,9 +2690,7 @@ var ComplexType = /** @class */ (function (_super) {
                 current.type === this &&
                 isMutable(newValue) &&
                 !isStateTreeNode(newValue) &&
-                (!current.identifierAttribute ||
-                    current.identifier ===
-                        normalizeIdentifier(newValue[current.identifierAttribute]))
+                this.isMatchingSnapshotId(current, newValue)
             ) {
                 // the newValue has no node, so can be treated like a snapshot
                 // we can reconcile
@@ -4942,6 +4964,8 @@ function splitJsonPath(path) {
     return parts
 }
 
+/** @hidden */
+var $preProcessorFailed = Symbol("$preProcessorFailed")
 var SnapshotProcessor = /** @class */ (function (_super) {
     __extends(SnapshotProcessor, _super)
     function SnapshotProcessor(_subtype, _processors, name) {
@@ -4986,6 +5010,18 @@ var SnapshotProcessor = /** @class */ (function (_super) {
             return sn
         }
     })
+    Object.defineProperty(SnapshotProcessor.prototype, "preProcessSnapshotSafe", {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: function (sn) {
+            try {
+                return this.preProcessSnapshot(sn)
+            } catch (e) {
+                return $preProcessorFailed
+            }
+        }
+    })
     Object.defineProperty(SnapshotProcessor.prototype, "postProcessSnapshot", {
         enumerable: false,
         configurable: true,
@@ -5004,10 +5040,13 @@ var SnapshotProcessor = /** @class */ (function (_super) {
         value: function (node) {
             var _this = this
             // the node has to use these methods rather than the original type ones
-            proxyNodeTypeMethods(node.type, this, "create")
+            proxyNodeTypeMethods(node.type, this, "create", "is", "isMatchingSnapshotId")
             var oldGetSnapshot = node.getSnapshot
             node.getSnapshot = function () {
                 return _this.postProcessSnapshot(oldGetSnapshot.call(node))
+            }
+            node.getReconciliationType = function () {
+                return _this
             }
         }
     })
@@ -5063,7 +5102,10 @@ var SnapshotProcessor = /** @class */ (function (_super) {
         configurable: true,
         writable: true,
         value: function (value, context) {
-            var processedSn = this.preProcessSnapshot(value)
+            var processedSn = this.preProcessSnapshotSafe(value)
+            if (processedSn === $preProcessorFailed) {
+                return typeCheckFailure(context, value, "Failed to preprocess value")
+            }
             return this._subtype.validate(processedSn, context)
         }
     })
@@ -5084,7 +5126,10 @@ var SnapshotProcessor = /** @class */ (function (_super) {
                 ? this._subtype
                 : isStateTreeNode(thing)
                 ? getSnapshot(thing, false)
-                : this.preProcessSnapshot(thing)
+                : this.preProcessSnapshotSafe(thing)
+            if (value === $preProcessorFailed) {
+                return false
+            }
             return this._subtype.validate(value, [{ path: "", type: this._subtype }]).length === 0
         }
     })
@@ -5094,6 +5139,22 @@ var SnapshotProcessor = /** @class */ (function (_super) {
         writable: true,
         value: function (type) {
             return this._subtype.isAssignableFrom(type)
+        }
+    })
+    Object.defineProperty(SnapshotProcessor.prototype, "isMatchingSnapshotId", {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: function (current, snapshot) {
+            if (!(this._subtype instanceof ComplexType)) {
+                return false
+            }
+            var processedSn = this.preProcessSnapshot(snapshot)
+            return ComplexType.prototype.isMatchingSnapshotId.call(
+                this._subtype,
+                current,
+                processedSn
+            )
         }
     })
     return SnapshotProcessor
@@ -6183,8 +6244,8 @@ function areSame(oldNode, newValue) {
         oldNode.identifier !== null &&
         oldNode.identifierAttribute &&
         isPlainObject(newValue) &&
-        oldNode.identifier === normalizeIdentifier(newValue[oldNode.identifierAttribute]) &&
-        oldNode.type.is(newValue)
+        oldNode.type.is(newValue) &&
+        oldNode.type.isMatchingSnapshotId(oldNode, newValue)
     )
 }
 /**
@@ -7460,7 +7521,7 @@ var Union = /** @class */ (function (_super) {
         configurable: true,
         writable: true,
         value: function (current, newValue, parent, subpath) {
-            var type = this.determineType(newValue, current.type)
+            var type = this.determineType(newValue, current.getReconciliationType())
             if (!type) throw fail$1("No matching type for union " + this.describe()) // can happen in prod builds
             return type.reconcile(current, newValue, parent, subpath)
         }
@@ -8131,9 +8192,8 @@ var StoredReference = /** @class */ (function () {
         value: function (node) {
             var normalizedId = normalizeIdentifier(this.identifier)
             var root = node.root
-            var lastCacheModification = root.identifierCache.getLastCacheModificationPerId(
-                normalizedId
-            )
+            var lastCacheModification =
+                root.identifierCache.getLastCacheModificationPerId(normalizedId)
             if (
                 !this.resolvedReference ||
                 this.resolvedReference.lastCacheModification !== lastCacheModification

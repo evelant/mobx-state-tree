@@ -12,9 +12,8 @@ import {
     IAnyComplexType
 } from "../internal"
 /** @hidden */
-export declare type TypeOrStateTreeNodeToStateTreeNode<
-    T extends IAnyType | IAnyStateTreeNode
-> = T extends IType<any, any, infer TT> ? TT & IStateTreeNode<T> : T
+export declare type TypeOrStateTreeNodeToStateTreeNode<T extends IAnyType | IAnyStateTreeNode> =
+    T extends IType<any, any, infer TT> ? TT & IStateTreeNode<T> : T
 /**
  * Returns the _actual_ type of the given tree node. (Or throws)
  *
