@@ -279,7 +279,8 @@ export type SnapshotOrInstance<T> = SnapshotIn<T> | Instance<T>
  * @hidden
  */
 export abstract class BaseType<C, S, T, N extends BaseNode<any, any, any> = BaseNode<C, S, T>>
-    implements IType<C, S, T> {
+    implements IType<C, S, T>
+{
     [$type]!: undefined
 
     // these are just to make inner types avaialable to inherited classes
@@ -419,6 +420,14 @@ export abstract class ComplexType<C, S, T> extends BaseType<C, S, T, ObjectNode<
     abstract initializeChildNodes(node: this["N"], snapshot: any): IChildNodesMap
     abstract removeChild(node: this["N"], subpath: string): void
 
+    isMatchingSnapshotId(current: this["N"], snapshot: C): boolean {
+        return (
+            !current.identifierAttribute ||
+            current.identifier ===
+                normalizeIdentifier((snapshot as any)[current.identifierAttribute])
+        )
+    }
+
     private tryToReconcileNode(current: this["N"], newValue: C | T) {
         if (current.isDetaching) return false
         if ((current.snapshot as any) === newValue) {
@@ -433,9 +442,7 @@ export abstract class ComplexType<C, S, T> extends BaseType<C, S, T, ObjectNode<
             current.type === this &&
             isMutable(newValue) &&
             !isStateTreeNode(newValue) &&
-            (!current.identifierAttribute ||
-                current.identifier ===
-                    normalizeIdentifier((newValue as any)[current.identifierAttribute]))
+            this.isMatchingSnapshotId(current, newValue as any)
         ) {
             // the newValue has no node, so can be treated like a snapshot
             // we can reconcile
