@@ -14,25 +14,24 @@ export interface ModelPropertiesDeclaration {
  *
  * @hidden
  */
-export declare type ModelPropertiesDeclarationToProperties<
-    T extends ModelPropertiesDeclaration
-> = T extends {
-    [k: string]: IAnyType
-}
-    ? T
-    : {
-          [K in keyof T]: T[K] extends IAnyType
-              ? T[K]
-              : T[K] extends string
-              ? IType<string | undefined, string, string>
-              : T[K] extends number
-              ? IType<number | undefined, number, number>
-              : T[K] extends boolean
-              ? IType<boolean | undefined, boolean, boolean>
-              : T[K] extends Date
-              ? IType<number | Date | undefined, number, Date>
-              : never
-      }
+export declare type ModelPropertiesDeclarationToProperties<T extends ModelPropertiesDeclaration> =
+    T extends {
+        [k: string]: IAnyType
+    }
+        ? T
+        : {
+              [K in keyof T]: T[K] extends IAnyType
+                  ? T[K]
+                  : T[K] extends string
+                  ? IType<string | undefined, string, string>
+                  : T[K] extends number
+                  ? IType<number | undefined, number, number>
+                  : T[K] extends boolean
+                  ? IType<boolean | undefined, boolean, boolean>
+                  : T[K] extends Date
+                  ? IType<number | Date | undefined, number, Date>
+                  : never
+          }
 /**
  * Checks if a value is optional (undefined, any or unknown).
  * @hidden
@@ -66,8 +65,7 @@ export declare type ExtractCFromProps<P extends ModelProperties> = {
 /** @hidden */
 export declare type ModelCreationType<PC> = {
     [P in DefinablePropsNames<PC>]: PC[P]
-} &
-    Partial<PC> &
+} & Partial<PC> &
     NonEmptyObject
 /** @hidden */
 export declare type ModelCreationType2<P extends ModelProperties, CustomC> = _CustomOrOther<
@@ -77,17 +75,18 @@ export declare type ModelCreationType2<P extends ModelProperties, CustomC> = _Cu
 /** @hidden */
 export declare type ModelSnapshotType<P extends ModelProperties> = {
     [K in keyof P]: P[K]["SnapshotType"]
-} &
-    NonEmptyObject
+} & NonEmptyObject
+declare type IsNotNever<T> = [T] extends [never] ? false : true
 /**
- * Take advantage of tail retcursion optimization to optimize away Omit on .views/.actions where properties don't intersect.
- * Using Omit makes types _very_ slow
+ *
+ * Using Omit makes types _very_ slow so only do it if necessary
  * https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-5.html#tail-recursion-elimination-on-conditional-types
  */
-declare type OmitIfMatchingKeys<T extends Object, U extends Object> = keyof U &
-    keyof T extends keyof T
+declare type OmitIfMatchingKeys<T extends Object, U extends Object> = IsNotNever<
+    keyof U & keyof T
+> extends true
     ? Omit<T, keyof U> & U
-    : U
+    : T & U
 /** @hidden */
 export declare type ModelSnapshotType2<P extends ModelProperties, CustomS> = _CustomOrOther<
     CustomS,
@@ -99,8 +98,7 @@ export declare type ModelSnapshotType2<P extends ModelProperties, CustomS> = _Cu
  */
 export declare type ModelInstanceTypeProps<P extends ModelProperties> = {
     [K in keyof P]: P[K]["Type"]
-} &
-    NonEmptyObject
+} & NonEmptyObject
 /**
  * @hidden
  * do not transform this to an interface or model instance type generated declarations will be longer
@@ -115,8 +113,7 @@ export interface IModelType<
     OTHERS,
     CustomC = _NotCustomized,
     CustomS = _NotCustomized
->
-    extends IType<
+> extends IType<
         ModelCreationType2<PROPS, CustomC>,
         ModelSnapshotType2<PROPS, CustomS>,
         ModelInstanceType<PROPS, OTHERS>
@@ -141,9 +138,7 @@ export interface IModelType<
         fn: (self: Instance<this>) => TP
     ): IModelType<PROPS, OmitIfMatchingKeys<OTHERS, TP>, CustomC, CustomS>
     extend<A extends ModelActions = {}, V extends Object = {}, VS extends Object = {}>(
-        fn: (
-            self: Instance<this>
-        ) => {
+        fn: (self: Instance<this>) => {
             actions?: A
             views?: V
             state?: VS
