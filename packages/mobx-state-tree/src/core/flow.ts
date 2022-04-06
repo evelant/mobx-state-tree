@@ -10,6 +10,11 @@ import {
 /**
  * @hidden
  */
+export type CancellablePromise<T> = Promise<T> & { cancel(): void }
+
+/**
+ * @hidden
+ */
 export type FlowReturn<R> = R extends Promise<infer T> ? T : R
 
 /**
@@ -18,9 +23,15 @@ export type FlowReturn<R> = R extends Promise<infer T> ? T : R
  * @returns The flow as a promise.
  */
 export function flow<R, Args extends any[]>(
+    // <<<<<<< HEAD
+    //     generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
+    // ): (...args: Args) => Promise<FlowReturn<R>> {
+    //     return createFlowSpawner(generator.name, generator) as any
+    // =======
     generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
-): (...args: Args) => Promise<FlowReturn<R>> {
-    return createFlowSpawner(generator.name, generator) as any
+): (...args: Args) => CancellablePromise<FlowReturn<R>> {
+    return createFlowSpawner(generator.name, generator)
+    // >>>>>>> 0e8a1726 (Add cancel method to promises returned from flow)
 }
 
 /**
@@ -91,8 +102,11 @@ export function* toGenerator<R>(p: Promise<R>) {
  * @internal
  * @hidden
  */
-export function createFlowSpawner(name: string, generator: Function) {
-    const spawner = function flowSpawner(this: any) {
+export function createFlowSpawner<R, Args extends any[]>(
+    name: string,
+    generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
+): (...args: Args) => CancellablePromise<FlowReturn<R>> {
+    const spawner = function flowSpawner(...generatorArgs: Args) {
         // Implementation based on https://github.com/tj/co/blob/master/index.js
         const runId = getNextActionId()
         const parentContext = getCurrentActionContext()!
@@ -118,6 +132,13 @@ export function createFlowSpawner(name: string, generator: Function) {
 
         const args = arguments
 
+        let thisFlowGenerator: Generator<PromiseLike<any>, R, any>
+        let resolver: (value: any) => void
+        let rejector: (error: any) => void
+
+        /**
+         * When a yielded promise resolves or rejects resume the flow by first calling middlewares
+         */
         function wrap(fn: any, type: IMiddlewareEventType, arg: any) {
             fn.$mst_middleware = (spawner as any).$mst_middleware // pick up any middleware attached to the flow
             runWithActionContext(
@@ -130,10 +151,72 @@ export function createFlowSpawner(name: string, generator: Function) {
             )
         }
 
-        return new Promise(function (resolve, reject) {
-            let gen: any
+        /**
+         * When a yielded promise is fulfilled call middlewares and resume the flow generator
+         * with the fulfilled value
+         */
+        function onFulfilled(res: any) {
+            let ret
+            try {
+                // prettier-ignore
+                wrap((r: any) => { ret = thisFlowGenerator.next(r) }, "flow_resume", res)
+            } catch (e) {
+                // prettier-ignore
+                setImmediateWithFallback(() => {
+                    wrap((r: any) => { rejector(e) }, "flow_throw", e)
+                })
+                return
+            }
+            handleThisFlowGeneratorNextValue(ret)
+            return
+        }
+
+        /**
+         * When a yielded promise is rejected call middlewares with error and throw rejection error
+         * into flow generator
+         */
+        function onRejected(err: any) {
+            let ret
+            try {
+                // prettier-ignore
+                wrap((r: any) => { ret = thisFlowGenerator.throw(r) }, "flow_resume_error", err) // or yieldError?
+            } catch (e) {
+                // prettier-ignore
+                setImmediateWithFallback(() => {
+                    wrap((r: any) => { rejector(e) }, "flow_throw", e)
+                })
+                return
+            }
+            handleThisFlowGeneratorNextValue(ret)
+        }
+
+        /**
+         * Push the next value into the flow generator function or finish the flow.
+         * Unfortunately it's currently impossible to type the "return" of `yield` in TS 4.1
+         * https://github.com/microsoft/TypeScript/issues/32523
+         */
+        function handleThisFlowGeneratorNextValue(ret: any) {
+            if (ret.done) {
+                // prettier-ignore
+                setImmediateWithFallback(() => {
+                    wrap((r: any) => { resolver(r) }, "flow_return", ret.value)
+                })
+                return
+            }
+            // TODO: support more type of values? See https://github.com/tj/co/blob/249bbdc72da24ae44076afd716349d2089b31c4c/index.js#L100
+            if (!ret.value || typeof ret.value.then !== "function") {
+                // istanbul ignore next
+                throw fail("Only promises can be yielded to `async`, got: " + ret)
+            }
+            return ret.value.then(onFulfilled, onRejected)
+        }
+
+        const promise = new Promise<FlowReturn<R>>(function (resolve, reject) {
+            resolver = resolve
+            rejector = reject
+
             const init = function asyncActionInit() {
-                gen = generator.apply(null, arguments)
+                thisFlowGenerator = generator.apply(null, generatorArgs)
                 onFulfilled(undefined) // kick off the flow
             }
             ;(init as any).$mst_middleware = (spawner as any).$mst_middleware
@@ -146,54 +229,13 @@ export function createFlowSpawner(name: string, generator: Function) {
                 },
                 init
             )
+        }) as CancellablePromise<FlowReturn<R>>
 
-            function onFulfilled(res: any) {
-                let ret
-                try {
-                    // prettier-ignore
-                    wrap((r: any) => { ret = gen.next(r) }, "flow_resume", res)
-                } catch (e) {
-                    // prettier-ignore
-                    setImmediateWithFallback(() => {
-                        wrap((r: any) => { reject(e) }, "flow_throw", e)
-                    })
-                    return
-                }
-                next(ret)
-                return
-            }
+        promise.cancel = function () {
+            thisFlowGenerator.next(onRejected(new Error("FLOW_CANCELLED")))
+        }
 
-            function onRejected(err: any) {
-                let ret
-                try {
-                    // prettier-ignore
-                    wrap((r: any) => { ret = gen.throw(r) }, "flow_resume_error", err) // or yieldError?
-                } catch (e) {
-                    // prettier-ignore
-                    setImmediateWithFallback(() => {
-                        wrap((r: any) => { reject(e) }, "flow_throw", e)
-                    })
-                    return
-                }
-                next(ret)
-            }
-
-            function next(ret: any) {
-                if (ret.done) {
-                    // prettier-ignore
-                    setImmediateWithFallback(() => {
-                        wrap((r: any) => { resolve(r) }, "flow_return", ret.value)
-                    })
-                    return
-                }
-                // TODO: support more type of values? See https://github.com/tj/co/blob/249bbdc72da24ae44076afd716349d2089b31c4c/index.js#L100
-                if (!ret.value || typeof ret.value.then !== "function") {
-                    // istanbul ignore next
-                    throw fail("Only promises can be yielded to `async`, got: " + ret)
-                }
-                return ret.value.then(onFulfilled, onRejected)
-            }
-        })
+        return promise
     }
     return spawner
 }

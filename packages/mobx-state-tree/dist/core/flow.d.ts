@@ -14,7 +14,7 @@ export declare type FlowReturn<R> = R extends Promise<infer T> ? T : R
  * @returns The flow as a promise.
  */
 export declare function flow<R, Args extends any[]>(
-    generator: (...args: Args) => Generator<Promise<any>, R, any>
+    generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
 ): (...args: Args) => CancellablePromise<FlowReturn<R>>
 /**
  * @deprecated Not needed since TS3.6.
