@@ -1,3 +1,4 @@
+import { argsToArray, fail, setImmediateWithFallback } from "../utils"
 import {
     getCurrentActionContext,
     getNextActionId,
@@ -5,7 +6,6 @@ import {
     IMiddlewareEventType,
     runWithActionContext
 } from "./action"
-import { argsToArray, setImmediateWithFallback, fail } from "../utils"
 
 /**
  * @hidden
@@ -23,9 +23,15 @@ export type FlowReturn<R> = R extends Promise<infer T> ? T : R
  * @returns The flow as a promise.
  */
 export function flow<R, Args extends any[]>(
-    generator: (...args: Args) => Generator<Promise<any>, R, any>
+    // <<<<<<< HEAD
+    //     generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
+    // ): (...args: Args) => Promise<FlowReturn<R>> {
+    //     return createFlowSpawner(generator.name, generator) as any
+    // =======
+    generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
 ): (...args: Args) => CancellablePromise<FlowReturn<R>> {
     return createFlowSpawner(generator.name, generator)
+    // >>>>>>> 0e8a1726 (Add cancel method to promises returned from flow)
 }
 
 /**
@@ -98,7 +104,7 @@ export function* toGenerator<R>(p: Promise<R>) {
  */
 export function createFlowSpawner<R, Args extends any[]>(
     name: string,
-    generator: (...args: Args) => Generator<Promise<any>, R, any>
+    generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
 ): (...args: Args) => CancellablePromise<FlowReturn<R>> {
     const spawner = function flowSpawner(...generatorArgs: Args) {
         // Implementation based on https://github.com/tj/co/blob/master/index.js
@@ -126,7 +132,7 @@ export function createFlowSpawner<R, Args extends any[]>(
 
         const args = arguments
 
-        let thisFlowGenerator: Generator<Promise<any>, R, any>
+        let thisFlowGenerator: Generator<PromiseLike<any>, R, any>
         let resolver: (value: any) => void
         let rejector: (error: any) => void
 

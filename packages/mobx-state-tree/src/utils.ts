@@ -87,7 +87,7 @@ export function isArray(val: any): val is any[] {
  * @hidden
  */
 export function asArray<T>(val: undefined | null | T | T[] | ReadonlyArray<T>): T[] {
-    if (!val) return (EMPTY_ARRAY as any) as T[]
+    if (!val) return EMPTY_ARRAY as any as T[]
     if (isArray(val)) return val as T[]
     return [val] as T[]
 }
@@ -153,15 +153,14 @@ export function isMutable(value: any) {
  * @hidden
  */
 export function isPrimitive(value: any, includeDate = true): value is Primitives {
-    if (value === null || value === undefined) return true
-    if (
+    return (
+        value === null ||
+        value === undefined ||
         typeof value === "string" ||
         typeof value === "number" ||
         typeof value === "boolean" ||
         (includeDate && value instanceof Date)
     )
-        return true
-    return false
 }
 
 /**

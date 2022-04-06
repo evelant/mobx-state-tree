@@ -674,7 +674,7 @@ function resolveIdentifier(type, target, identifier) {
         type,
         normalizeIdentifier(identifier)
     )
-    return node ? node.value : undefined
+    return node === null || node === void 0 ? void 0 : node.value
 }
 /**
  * Returns the identifier of the target node.
@@ -4192,15 +4192,14 @@ function isPrimitive(value, includeDate) {
     if (includeDate === void 0) {
         includeDate = true
     }
-    if (value === null || value === undefined) return true
-    if (
+    return (
+        value === null ||
+        value === undefined ||
         typeof value === "string" ||
         typeof value === "number" ||
         typeof value === "boolean" ||
         (includeDate && value instanceof Date)
     )
-        return true
-    return false
 }
 /**
  * @internal
@@ -4617,8 +4616,16 @@ function setImmediateWithFallback(fn) {
  *
  * @returns The flow as a promise.
  */
-function flow(generator) {
+function flow(
+    // <<<<<<< HEAD
+    //     generator: (...args: Args) => Generator<PromiseLike<any>, R, any>
+    // ): (...args: Args) => Promise<FlowReturn<R>> {
+    //     return createFlowSpawner(generator.name, generator) as any
+    // =======
+    generator
+) {
     return createFlowSpawner(generator.name, generator)
+    // >>>>>>> 0e8a1726 (Add cancel method to promises returned from flow)
 }
 /**
  * @deprecated Not needed since TS3.6.
@@ -5022,7 +5029,7 @@ var SnapshotProcessor = /** @class */ (function (_super) {
         value: function (node) {
             var _this = this
             // the node has to use these methods rather than the original type ones
-            proxyNodeTypeMethods(node.type, this, "create", "is", "isMatchingSnapshotId")
+            proxyNodeTypeMethods(node.type, this, "create")
             var oldGetSnapshot = node.getSnapshot
             node.getSnapshot = function () {
                 return _this.postProcessSnapshot(oldGetSnapshot.call(node))
@@ -5132,11 +5139,7 @@ var SnapshotProcessor = /** @class */ (function (_super) {
                 return false
             }
             var processedSn = this.preProcessSnapshot(snapshot)
-            return ComplexType.prototype.isMatchingSnapshotId.call(
-                this._subtype,
-                current,
-                processedSn
-            )
+            return this._subtype.isMatchingSnapshotId(current, processedSn)
         }
     })
     return SnapshotProcessor
@@ -5414,29 +5417,24 @@ var MapType = /** @class */ (function (_super) {
             }
             var modelTypes = []
             if (tryCollectModelTypes(this._subType, modelTypes)) {
-                var identifierAttribute_1 = undefined
-                modelTypes.forEach(function (type) {
-                    if (type.identifierAttribute) {
-                        if (
-                            identifierAttribute_1 &&
-                            identifierAttribute_1 !== type.identifierAttribute
-                        ) {
-                            throw fail$1(
-                                "The objects in a map should all have the same identifier attribute, expected '" +
-                                    identifierAttribute_1 +
-                                    "', but child of type '" +
-                                    type.name +
-                                    "' declared attribute '" +
-                                    type.identifierAttribute +
-                                    "' as identifier"
-                            )
-                        }
-                        identifierAttribute_1 = type.identifierAttribute
+                var identifierAttribute = modelTypes.reduce(function (current, type) {
+                    if (!type.identifierAttribute) return current
+                    if (current && current !== type.identifierAttribute) {
+                        throw fail$1(
+                            "The objects in a map should all have the same identifier attribute, expected '" +
+                                current +
+                                "', but child of type '" +
+                                type.name +
+                                "' declared attribute '" +
+                                type.identifierAttribute +
+                                "' as identifier"
+                        )
                     }
-                })
-                if (identifierAttribute_1) {
+                    return type.identifierAttribute
+                }, undefined)
+                if (identifierAttribute) {
                     this.identifierMode = MapIdentifierMode.YES
-                    this.mapIdentifierAttribute = identifierAttribute_1
+                    this.mapIdentifierAttribute = identifierAttribute
                 } else {
                     this.identifierMode = MapIdentifierMode.NO
                 }
@@ -6220,14 +6218,18 @@ function areSame(oldNode, newValue) {
     if (oldNode.snapshot === newValue) {
         return true
     }
+    // Non object nodes don't get reconciled
+    if (!(oldNode instanceof ObjectNode)) {
+        return false
+    }
+    var oldNodeType = oldNode.getReconciliationType()
     // new value is a snapshot with the correct identifier
     return (
-        oldNode instanceof ObjectNode &&
         oldNode.identifier !== null &&
         oldNode.identifierAttribute &&
         isPlainObject(newValue) &&
-        oldNode.type.is(newValue) &&
-        oldNode.type.isMatchingSnapshotId(oldNode, newValue)
+        oldNodeType.is(newValue) &&
+        oldNodeType.isMatchingSnapshotId(oldNode, newValue)
     )
 }
 /**

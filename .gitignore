@@ -10,3 +10,4 @@ package-lock.json
 .editorconfig
 /test-results/**/*.xml
 /website/build
+/.yarn/
